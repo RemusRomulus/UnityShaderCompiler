@@ -1,10 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
+
+#if WINDOWS
 using Microsoft.Win32;
+#else
+using System.Net;
+#endif
 
 namespace OfflineShaderCompiler
 {
@@ -50,7 +56,11 @@ namespace OfflineShaderCompiler
 		const int blockSize = 4096;
 
 		Process process;
+#if WINDOWS
 		NamedPipeServerStream pipe;
+#else
+		SocketPipe pipe;
+#endif
 		string includePath;
 		byte[] buffer = new byte[blockSize];
 		Dictionary<string, Binding> allBindings
@@ -135,10 +145,14 @@ namespace OfflineShaderCompiler
 		public CompilerService(string logFile)
 			: this(
 			logFile,
+#if WINDOWS
 			Path.GetDirectoryName(
 			Registry.CurrentUser.OpenSubKey(@"Software\Unity Technologies\Unity Editor 3.x\Location")
 			.GetValue(null, "").ToString())
 			+ "/Data/Tools/UnityShaderCompiler.exe"
+#else
+			"/Applications/Unity/Unity.app/Contents/Tools/UnityShaderCompiler"
+#endif
 			)
 		{
 		}
@@ -197,12 +211,27 @@ namespace OfflineShaderCompiler
 			if(pipeName.Contains(IDString))
 				pipeName = pipeName.Replace(IDString, GetHashCode().ToString());
 			process = new Process();
-			process.StartInfo.FileName = compilerPath.Replace('/', '\\');
-			process.StartInfo.UseShellExecute = false;
+#if WINDOWS
+			compilerPath = compilerPath.Replace('/', '\\');
 			process.StartInfo.CreateNoWindow = true;
 			process.StartInfo.Arguments = String.Format("\"{0}\"  \"{1}\" \"\\\\.\\pipe\\{2}\"",
 				EscapeShellArg(basePath), EscapeShellArg(logFile), EscapeShellArg(pipeName));
+#else
+			const int port = 10123;
+			process.StartInfo.Arguments = String.Format("\"{0}\"  \"{1}\" \"{2}\"",
+				EscapeShellArg(basePath), EscapeShellArg(logFile), EscapeShellArg(port.ToString()));
+#endif
+			process.StartInfo.FileName = compilerPath;
+			process.StartInfo.UseShellExecute = false;
+#if WINDOWS
 			pipe = new NamedPipeServerStream(pipeName);
+#else
+			pipe = new SocketPipe(new IPEndPoint(IPAddress.Any, port));
+#endif
+
+			if (!File.Exists(compilerPath))
+				throw new System.Exception("no compiler at " + compilerPath);
+
 			process.Start();
 			pipe.WaitForConnection();
 		}
@@ -241,21 +270,38 @@ namespace OfflineShaderCompiler
 				buffer = new byte[newSize];
 		}
 
-		// Writes a message to the compiler
-		unsafe void WriteMessage(string str)
+		public static byte[] Combine(params byte[][] arrays)
 		{
+			byte[] ret = new byte[arrays.Sum(x => x.Length)];
+			int offset = 0;
+			foreach (byte[] data in arrays) {
+				Buffer.BlockCopy(data, 0, ret, offset, data.Length);
+				offset += data.Length;
+			}
+			return ret;
+		}
+
+		byte[] magic;
+
+		// Writes a message to the compiler
+		void WriteMessage(string str) {
 			if (str == null)
 				str = "";
-			EnsureBufferCapacity(str.Length + 2, false);
-			int numBytes;
-			fixed (byte* buf = buffer)
-			fixed (char* chars = str)
-				numBytes = Encoding.ASCII.GetBytes(chars, str.Length, buf, buffer.Length - 1);
-			if(numBytes >= 0)
-			{
-				buffer[numBytes] = (byte)'\n';
-				pipe.Write(buffer, 0, numBytes + 1);
-			}
+
+			if (magic == null)
+				magic = new byte[] {
+					(byte)Convert.ToInt32("e6", 16),
+					(byte)Convert.ToInt32("c4", 16),
+					(byte)Convert.ToInt32("02", 16),
+					(byte)Convert.ToInt32("0c", 16)
+				};
+
+			byte[] byteArray = Combine(
+				magic,
+				BitConverter.GetBytes(str.Length),
+				Encoding.ASCII.GetBytes(str));
+
+			pipe.Write(byteArray, 0, byteArray.Length);
 		}
 
 		// Reads a message from the compiler

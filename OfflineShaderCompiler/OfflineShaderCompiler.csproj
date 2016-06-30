@@ -41,6 +41,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CompilerService.cs" />
+    <Compile Include="SocketPipe.cs" />
     <Compile Include="Enumerations.cs" />
     <Compile Include="Output.cs" />
     <Compile Include="Program.cs" />
