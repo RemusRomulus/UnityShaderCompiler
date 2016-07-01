@@ -259,15 +259,12 @@ namespace OfflineShaderCompiler
 		}
 
 		// Expands the command buffer as necessary, in steps of 'blockSize'
-		void EnsureBufferCapacity(int capacity, bool copyExisting)
+		void EnsureBufferCapacity(int capacity)
 		{
 			if (buffer.Length >= capacity)
 				return;
 			var newSize = ((capacity % blockSize) + 1) * blockSize;
-			if (copyExisting)
-				Array.Resize(ref buffer, newSize);
-			else
-				buffer = new byte[newSize];
+			Array.Resize(ref buffer, newSize);
 		}
 
 		public static byte[] Combine(params byte[][] arrays)
@@ -281,47 +278,54 @@ namespace OfflineShaderCompiler
 			return ret;
 		}
 
-		byte[] magic;
+		byte[] _magic;
+
+		byte[] Magic {
+			get {
+				if (_magic == null)
+					_magic = new byte[] {
+						(byte)Convert.ToInt32("e6", 16),
+						(byte)Convert.ToInt32("c4", 16),
+						(byte)Convert.ToInt32("02", 16),
+						(byte)Convert.ToInt32("0c", 16)
+					};
+				return _magic;
+			}
+		}
 
 		// Writes a message to the compiler
 		void WriteMessage(string str) {
 			if (str == null)
 				str = "";
 
-			if (magic == null)
-				magic = new byte[] {
-					(byte)Convert.ToInt32("e6", 16),
-					(byte)Convert.ToInt32("c4", 16),
-					(byte)Convert.ToInt32("02", 16),
-					(byte)Convert.ToInt32("0c", 16)
-				};
-
 			byte[] byteArray = Combine(
-				magic,
+				Magic,
 				BitConverter.GetBytes(str.Length),
-				Encoding.ASCII.GetBytes(str));
+				Encoding.UTF8.GetBytes(str));
 
 			pipe.Write(byteArray, 0, byteArray.Length);
 		}
 
-		// Reads a message from the compiler
-		unsafe string ReadMessage()
+		public static string ByteArrayToString(byte[] ba)
 		{
-			int bytesRead = 0;
-			int integer;
-			while(true)
-			{
-				integer = pipe.ReadByte();
-				if (integer < 0 || integer == (int)'\n')
-					break;
-				if (bytesRead >= buffer.Length)
-					EnsureBufferCapacity(bytesRead + 1, true);
-				buffer[bytesRead] = (byte)integer;
-				bytesRead++;
-			}
-			if (bytesRead == 0)
-				return "";
-			return Encoding.ASCII.GetString(buffer, 0, bytesRead);
+		  StringBuilder hex = new StringBuilder(ba.Length * 2);
+		  foreach (byte b in ba)
+			hex.AppendFormat("{0:x2}", b);
+		  return hex.ToString();
+		}
+
+		string ReadMessage() {
+			var magicBytes = pipe.Reader.ReadBytes(4);
+			if (!Magic.SequenceEqual(magicBytes))
+				throw new Exception("expected magic, got '" + ByteArrayToString(magicBytes) + "' (a byte array of length " + magicBytes.Length);
+
+			int messageLength = pipe.Reader.ReadInt32();
+
+			EnsureBufferCapacity(messageLength);
+			if (messageLength != pipe.Stream.Read(buffer, 0, messageLength))
+				throw new Exception("didn't read enough message bytes");
+
+			return Encoding.UTF8.GetString(buffer, 0, messageLength);
 		}
 
 		// Escapes compiler input, replacing newlines with "\\n" and escaping backslashes
@@ -467,7 +471,7 @@ namespace OfflineShaderCompiler
 
 			// Send all the input data
 			WriteMessage("c:preprocess");
-			WriteMessage(EscapeInput(source));
+			WriteMessage(source);
 			WriteMessage(location);
 			WriteMessage(IncludePath);
 			WriteMessage("0"); // No idea what this is for
@@ -477,8 +481,7 @@ namespace OfflineShaderCompiler
 			var errors = new List<Error>();
 
 			// Unknown number of output lines
-			while(true)
-			{
+			while(true) {
 				var line = ReadMessage();
 				var tokens = line.Split(spaceSeparator);
 				if (tokens.Length < 1)
@@ -567,7 +570,7 @@ namespace OfflineShaderCompiler
 
 			// Send all the input data
 			WriteMessage("c:compileSnippet");
-			WriteMessage(EscapeInput(snip));
+			WriteMessage(snip);
 			WriteMessage(location);
 			WriteMessage(IncludePath);
 			// Send the keywords (one per line)

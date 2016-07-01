@@ -2,12 +2,16 @@ using System;
 using System.Net;
 using System.Threading;
 using System.Text;
+using System.IO;
 using System.Net.Sockets;
 
 namespace OfflineShaderCompiler {
-public class SocketPipe : IDisposable {
+public class SocketPipe {
 	public Socket listener;
 	Socket handler;
+
+	public NetworkStream Stream;
+	public BinaryReader Reader;
 	
 	static bool IsSocketConnected(Socket s)
 	{
@@ -22,37 +26,36 @@ public class SocketPipe : IDisposable {
 
 	public void WaitForConnection() {
 		handler = listener.Accept();
-		handler.ReceiveTimeout = 3000;
-		Console.WriteLine("accepted socket " + handler);
+		Stream = new NetworkStream(handler);
+		Reader = new BinaryReader(Stream);
 	}
 
 	byte[] toWrite;
 
 	public void Write(byte[] buffer, int offset, int count) {
-		if (toWrite == null)
+		if (toWrite == null || toWrite.Length < count)
 			toWrite = new byte[count];
-		else if (toWrite.Length < count)
-			Array.Resize(ref toWrite, count);
-
+		
 		Array.Copy(buffer, offset, toWrite, 0, count);
+
 		int bytesSent = handler.Send(toWrite, 0, count, SocketFlags.None);
-		Console.WriteLine("WRITE: " + Encoding.UTF8.GetString(toWrite));
-		if (bytesSent != count)
-			throw new Exception("wrote " + bytesSent + " bytes but tried to write " + count);
 	}
 
 	public void Dispose() { }
 	
 	public bool IsConnected { get { return handler != null && IsSocketConnected(handler); } }
 
-	byte[] readBuffer = new byte[1];
-
 	public int ReadByte() {
-		int numBytes = handler.Receive(readBuffer);
-		if (numBytes == 1)
-			return (int)readBuffer[0];
-		else
+		byte[] buf = new byte[1];
+
+		int numBytes = handler.Receive(buf);
+
+		if (numBytes < 1)
 			return -1;
+		else if (numBytes == 1)
+			return (int)buf[0];
+		else
+			throw new Exception("unexpected number of bytes read " + numBytes);
 	}
 }
 }
