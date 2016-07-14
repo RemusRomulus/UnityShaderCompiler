@@ -71,12 +71,8 @@ namespace OfflineShaderCompiler
 		/// </summary>
 		public void Dispose()
 		{
-			if (!IsDisposed)
-			{
-				WriteMessage("");
-				pipe.Dispose();
-				process.Dispose();
-			}
+			pipe.Dispose();
+			process.Dispose();
 		}
 
 		/// <summary>
@@ -151,7 +147,7 @@ namespace OfflineShaderCompiler
 			.GetValue(null, "").ToString())
 			+ "/Data/Tools/UnityShaderCompiler.exe"
 #else
-			"/Applications/Unity/Unity.app/Contents/Tools/UnityShaderCompiler"
+			"/Applications/Unity5.3/Unity 5.3.app/Contents/Tools/UnityShaderCompiler"
 #endif
 			)
 		{
@@ -229,8 +225,9 @@ namespace OfflineShaderCompiler
 			pipe = new SocketPipe(new IPEndPoint(IPAddress.Any, port));
 #endif
 
-			if (!File.Exists(compilerPath))
+			if (!File.Exists(compilerPath)) {
 				throw new System.Exception("no compiler at " + compilerPath);
+			}
 
 			process.Start();
 			pipe.WaitForConnection();
@@ -246,13 +243,10 @@ namespace OfflineShaderCompiler
 		public PlatformReport GetPlatforms()
 		{
 			WriteMessage("c:getPlatforms");
-
-			try
-			{
+			try {
 				for (int i = 0; i < 13; i++)
 					platformParams[i] = Int32.Parse(ReadMessage());
-			} catch(FormatException)
-			{
+			} catch(FormatException) {
 				throw new ExternalCompilerException("Invalid platform number");
 			}
 			return new PlatformReport(platformParams);
@@ -294,7 +288,7 @@ namespace OfflineShaderCompiler
 		}
 
 		// Writes a message to the compiler
-		void WriteMessage(string str) {
+		void WriteMessage(string str, string debugText = "") {
 			if (str == null)
 				str = "";
 
@@ -304,17 +298,21 @@ namespace OfflineShaderCompiler
 				Encoding.UTF8.GetBytes(str));
 
 			pipe.Write(byteArray, 0, byteArray.Length);
+
+			Console.ForegroundColor = System.ConsoleColor.White;
+			Console.WriteLine("-----> " + debugText);
+			Console.WriteLine(str);
+			Console.ForegroundColor = System.ConsoleColor.Gray;
 		}
 
-		public static string ByteArrayToString(byte[] ba)
-		{
-		  StringBuilder hex = new StringBuilder(ba.Length * 2);
+		public static string ByteArrayToString(byte[] ba) {
+		  var hex = new StringBuilder(ba.Length * 2);
 		  foreach (byte b in ba)
 			hex.AppendFormat("{0:x2}", b);
 		  return hex.ToString();
 		}
 
-		string ReadMessage() {
+		string ReadMessage(string debugText = "") {
 			var magicBytes = pipe.Reader.ReadBytes(4);
 			if (!Magic.SequenceEqual(magicBytes))
 				throw new Exception("expected magic, got '" + ByteArrayToString(magicBytes) + "' (a byte array of length " + magicBytes.Length);
@@ -325,7 +323,14 @@ namespace OfflineShaderCompiler
 			if (messageLength != pipe.Stream.Read(buffer, 0, messageLength))
 				throw new Exception("didn't read enough message bytes");
 
-			return Encoding.UTF8.GetString(buffer, 0, messageLength);
+			var message = Encoding.UTF8.GetString(buffer, 0, messageLength);
+
+			Console.ForegroundColor = System.ConsoleColor.Magenta;
+			Console.WriteLine("<----- " + debugText);
+			Console.WriteLine(message);
+			Console.ForegroundColor = System.ConsoleColor.Gray;
+
+			return message;
 		}
 
 		// Escapes compiler input, replacing newlines with "\\n" and escaping backslashes
@@ -414,7 +419,7 @@ namespace OfflineShaderCompiler
 				throw new ExternalCompilerException("Empty message");
 			if (tokens[0] == "keywordsEnd:")
 			{
-				if(tokens.Length != 2)
+				if(tokens.Length != 3)
 					throw new ExternalCompilerException("Invalid 'keywordsEnd' message");
 				if (tokens[1] != programID)
 					throw new ExternalCompilerException("Invalid program ID; expected " + programID + ", got " + tokens[1]);
@@ -422,13 +427,11 @@ namespace OfflineShaderCompiler
 			}
 			if (tokens.Length < 4)
 				throw new ExternalCompilerException("Invalid 'keywords' message");
-			if (tokens[0] != "keywords:")
-				throw new ExternalCompilerException("Unknown command `" + tokens[0] + "', expected `keywords:'");
 			int function;
 			if (!Int32.TryParse(tokens[1], out function))
 				throw new ExternalCompilerException("Invalid keyword ID");
-			if (tokens[2] != programID)
-				throw new ExternalCompilerException("Invalid program ID; expected " + programID + ", got " + tokens[2]);
+			//if (tokens[2] != programID)
+				//throw new ExternalCompilerException("Invalid program ID; expected " + programID + ", got " + tokens[2]);
 			foundKeywords.Clear();
 			for (int i = 3; i < tokens.Length; i++)
 				foundKeywords.Add(GetKeyword(tokens[i]));
@@ -481,28 +484,25 @@ namespace OfflineShaderCompiler
 			var errors = new List<Error>();
 
 			// Unknown number of output lines
-			while(true) {
+			while(true)
+			{
 				var line = ReadMessage();
 				var tokens = line.Split(spaceSeparator);
 				if (tokens.Length < 1)
 					continue;
+
 				switch(tokens[0])
 				{
 					case "snip:":
-						// An individual snippet
-						if (tokens.Length != 10)
-							throw new ExternalCompilerException("Invalid 'snip' message");
 						intParams.Initialize();
-						try
-						{
+						try {
 							for (int i = 1; i < tokens.Length; i++)
 								intParams[i - 1] = Int32.Parse(tokens[i]);
 						}
-						catch (FormatException)
-						{
+						catch (FormatException) {
 							throw new ExternalCompilerException("Snip token is not a number");
 						}
-						var snipText = UnescapeOutput(ReadMessage());
+						var snipText = ReadMessage();
 						var configs = new List<Configuration>();
 						var programIDString = intParams[0].ToString();
 						while (ProcessKeyword(programIDString, configs)) ;
@@ -575,13 +575,15 @@ namespace OfflineShaderCompiler
 			WriteMessage(IncludePath);
 			// Send the keywords (one per line)
 			int keywordCount = keywords == null ? 0 : keywords.Length;
-			WriteMessage(keywordCount.ToString());
+			WriteMessage(keywordCount.ToString(), "keyword count");
+			WriteMessage("0", "other keyword count");
 			for (int i = 0; i < keywordCount; i++)
-				WriteMessage(keywords[i]);
+				WriteMessage(keywords[i], "keyword " + i);
 			WriteMessage(unknownParam.ToString());
 			WriteMessage(((int)function).ToString());
-			WriteMessage(((int)platform).ToString());
-			
+			WriteMessage("15"/*((int)platform)*/.ToString(), "platform");
+			WriteMessage("0");
+
 			var errors = new List<Error>();
 			var bindings = new List<Binding>();
 
@@ -615,7 +617,9 @@ namespace OfflineShaderCompiler
 						int ok;
 						if(!Int32.TryParse(tokens[1], out ok))
 							throw new ExternalCompilerException("Invalid 'OK' token");
-						return new CompileResult((ok != 0), bindings, UnescapeOutput(ReadMessage()));
+						var unknown = ReadMessage("unknown");
+						var shaderText = ReadMessage("shader text");
+						return new CompileResult((ok != 0), bindings, shaderText);
 				}
 			}
 		}
