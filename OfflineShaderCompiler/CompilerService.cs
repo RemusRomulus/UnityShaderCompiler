@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 
-#if WINDOWS
+#if WIN64
 using Microsoft.Win32;
 #else
 using System.Net;
@@ -56,7 +56,7 @@ namespace OfflineShaderCompiler
 		const int blockSize = 4096;
 
 		Process process;
-#if WINDOWS
+#if WIN64
 		NamedPipeServerStream pipe;
 #else
 		SocketPipe pipe;
@@ -141,15 +141,12 @@ namespace OfflineShaderCompiler
 		public CompilerService(string logFile)
 			: this(
 			logFile,
-#if WINDOWS
-			Path.GetDirectoryName(
-			Registry.CurrentUser.OpenSubKey(@"Software\Unity Technologies\Unity Editor 3.x\Location")
-			.GetValue(null, "").ToString())
-			+ "/Data/Tools/UnityShaderCompiler.exe"
+#if WIN64
+			"C:/Program Files/Unity/Editor/Data/Tools/UnityShaderCompiler.exe"
 #else
-			"/Applications/Unity5.3/Unity 5.3.app/Contents/Tools/UnityShaderCompiler"
+            "/Applications/Unity5.3/Unity 5.3.app/Contents/Tools/UnityShaderCompiler"
 #endif
-			)
+            )
 		{
 		}
 
@@ -207,7 +204,7 @@ namespace OfflineShaderCompiler
 			if(pipeName.Contains(IDString))
 				pipeName = pipeName.Replace(IDString, GetHashCode().ToString());
 			process = new Process();
-#if WINDOWS
+#if WIN64
 			compilerPath = compilerPath.Replace('/', '\\');
 			process.StartInfo.CreateNoWindow = true;
 			process.StartInfo.Arguments = String.Format("\"{0}\"  \"{1}\" \"\\\\.\\pipe\\{2}\"",
@@ -219,7 +216,7 @@ namespace OfflineShaderCompiler
 #endif
 			process.StartInfo.FileName = compilerPath;
 			process.StartInfo.UseShellExecute = false;
-#if WINDOWS
+#if WIN64
 			pipe = new NamedPipeServerStream(pipeName);
 #else
 			pipe = new SocketPipe(new IPEndPoint(IPAddress.Any, port));
@@ -313,17 +310,41 @@ namespace OfflineShaderCompiler
 		}
 
 		string ReadMessage(string debugText = "") {
-			var magicBytes = pipe.Reader.ReadBytes(4);
-			if (!Magic.SequenceEqual(magicBytes))
+// CHANGES: ABRITTON
+// PURPOSE: fix windows compile error by adding preprocessor #if PLATFORM
+#if WIN64
+            // Attempting to emulate the code inside the #else directive
+            // ABRITTON
+            byte[] magicBytes = new byte[4];
+            pipe.Read(magicBytes, 0, 4);
+#else
+            var magicBytes = pipe.Reader.ReadBytes(4);
+#endif
+            if (!Magic.SequenceEqual(magicBytes))
 				throw new Exception("expected magic, got '" + ByteArrayToString(magicBytes) + "' (a byte array of length " + magicBytes.Length);
 
-			int messageLength = pipe.Reader.ReadInt32();
+// CHANGES: ABRITTON
+// PURPOSE: fix windows compile error by adding preprocessor #if PLATFORM
+#if WIN64
+            // Attempting to emulate the code inside the #lse directive
+            // function taken from: https://msdn.microsoft.com/en-us/library/system.io.pipes.pipestream.length(v=vs.110).aspx
+            int messageLength = pipe.Length();
+#else
+            int messageLength = pipe.Reader.ReadInt32();
+#endif
 
-			EnsureBufferCapacity(messageLength);
-			if (messageLength != pipe.Stream.Read(buffer, 0, messageLength))
+            EnsureBufferCapacity(messageLength);
+
+#if WIN64
+            // TODO
+            // Reimplement the code below using the Windows NamedPipeServerStream object type
+            // https://msdn.microsoft.com/en-us/library/system.io.pipes.namedpipeserverstream(v=vs.110).aspx
+#else
+            if (messageLength != pipe.Stream.Read(buffer, 0, messageLength)) 
 				throw new Exception("didn't read enough message bytes");
+#endif
 
-			var message = Encoding.UTF8.GetString(buffer, 0, messageLength);
+            var message = Encoding.UTF8.GetString(buffer, 0, messageLength);
 
 			Console.ForegroundColor = System.ConsoleColor.Magenta;
 			Console.WriteLine("<----- " + debugText);
@@ -495,6 +516,9 @@ namespace OfflineShaderCompiler
 				{
 					case "snip:":
 						intParams.Initialize();
+                        // 'tokens' and 'intParams' are different sizes where tokens has the req'd information nested between two unused ends.
+                        // This can create an OutOfRangeException. So the for loop should be looking only for the nested information
+                        // This solution assumes that the req'd data is clumped together and unbroken
 						try {
 							for (int i = 1; i < tokens.Length; i++)
 								intParams[i - 1] = Int32.Parse(tokens[i]);

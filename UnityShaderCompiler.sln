@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2036
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityShaderCompilerIntercept", "UnityShaderCompilerTest\UnityShaderCompilerIntercept.csproj", "{CD8B0B99-62E7-4994-B024-001648CB0270}"
 EndProject
@@ -12,23 +12,40 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
 		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{CD8B0B99-62E7-4994-B024-001648CB0270}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{CD8B0B99-62E7-4994-B024-001648CB0270}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD8B0B99-62E7-4994-B024-001648CB0270}.Debug|x64.ActiveCfg = Debug|x64
+		{CD8B0B99-62E7-4994-B024-001648CB0270}.Debug|x64.Build.0 = Debug|x64
 		{CD8B0B99-62E7-4994-B024-001648CB0270}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CD8B0B99-62E7-4994-B024-001648CB0270}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD8B0B99-62E7-4994-B024-001648CB0270}.Release|x64.ActiveCfg = Release|x64
+		{CD8B0B99-62E7-4994-B024-001648CB0270}.Release|x64.Build.0 = Release|x64
 		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Debug|x64.ActiveCfg = Debug|x64
+		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Debug|x64.Build.0 = Debug|x64
 		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Release|x64.ActiveCfg = Release|x64
+		{23CC1096-B173-4A86-856F-DB5826A8E0E5}.Release|x64.Build.0 = Release|x64
 		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Debug|x64.ActiveCfg = Debug|x64
+		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Debug|x64.Build.0 = Debug|x64
 		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Release|x64.ActiveCfg = Release|x64
+		{91602B5E-E742-48C4-8D70-1D54A31C43F5}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {74D4FE26-209F-4154-B083-795335641707}
 	EndGlobalSection
 EndGlobal
